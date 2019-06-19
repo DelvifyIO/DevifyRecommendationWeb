@@ -16,6 +16,7 @@ const config = {
         productDetails: './src/js/product-details.js',
         cart: './src/js/cart.js',
         widget: './src/js/widget.js',
+        searchBar: './src/js/searchBar.js',
     },
     output: {
         path: path.resolve(__dirname, 'dist'),

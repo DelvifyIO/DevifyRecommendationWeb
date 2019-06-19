@@ -201,8 +201,9 @@
     $( document ).ready(function() {
         api('GET', '/category', {}).done(function(categories, status) {
             const category = getQuery()['category'];
+            const keyword = getQuery()['keyword'];
             $("#menuCategories").append("<ul class='sub_menu categoriesSubMenu'></ul>");
-            $("#sideCatMenu").append("<li  class=\"p-t-4\"><a href='product.html' class=\"s-text13" + (!category ? " active1" : "") + "\">" + "All" + "</a></li>");
+            $("#sideCatMenu").append("<li  class=\"p-t-4\"><a href='product.html' class=\"s-text13" + (!category && !keyword ? " active1" : "") + "\">" + "All" + "</a></li>");
 
             for (i=0;i<categories.length;i++)
             {

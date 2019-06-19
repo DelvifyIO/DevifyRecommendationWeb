@@ -19,14 +19,11 @@ block content
             .row
                 .col-sm-6.col-md-4.col-lg-3.p-b-50
                     .leftbar.p-r-20.p-r-0-sm
+                        #searchBar
                         //
                         h4.m-text14.p-b-7
                             | Categories
                         ul.p-b-54#sideCatMenu
-                        .search-product.pos-relative.bo4.of-hidden
-                            input.s-text7.size6.p-l-23.p-r-50(type='text', name='search-product', placeholder='Search Products...')
-                            button.flex-c-m.size5.ab-r-m.color2.color0-hov.trans-0-4
-                                i.fs-12.fa.fa-search(aria-hidden='true')
                 .col-sm-6.col-md-8.col-lg-9.p-b-50
                     // Product
                     .row#productList
@@ -35,4 +32,5 @@ block content
 
 block scripts
     script(src="../dist/product.bundle.js")
+    script(src="../dist/searchBar.bundle.js")
     script(src="../dist/widget.bundle.js")
