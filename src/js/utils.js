@@ -43,15 +43,15 @@ function getQuery()
     return vars;
 }
 
-function addToCart(id, quantity) {
+function addToCart(sku, quantity) {
     const cart = JSON.parse(sessionStorage.getItem( "delvify_cart" )) || { items: [] };
     let item = cart.items.find(function (t) {
-        return t.id === id;
+        return t.sku == sku;
     });
     if (item) {
         item.quantity += parseInt(quantity);
     } else {
-        item = { id, quantity };
+        item = { sku, quantity };
         cart.items.push(item);
     }
     $('.header-icons-noti').text(cart.items.reduce((acc, item) => item.quantity + acc, 0));
@@ -94,7 +94,7 @@ function addListener(type, callback = () => {}) {
             break;
         case 'more':
             $('.btn-more').click(function () {
-                callback($(this).data('id'));
+                callback($(this).data('pid'));
             });
             break;
     }

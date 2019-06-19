@@ -5,12 +5,12 @@ $( document ).ready(function() {
     let currencySign = '$';
     let promises = [];
     if (cart.items.length > 0) {
-        promises = cart.items.map(function ({ id, quantity }) {
-            return api('GET', '/product', { id }).done((item) => {
+        promises = cart.items.map(function ({ sku, quantity }) {
+            return api('GET', '/product', { sku }).done((item) => {
                 $('#table').append(
-                    "<tr class=\"table-row\" id=\"table-row-" + id + "\">" +
+                    "<tr class=\"table-row\" id=\"table-row-" + sku + "\">" +
                     "<td class=\"column-1\">" +
-                    "<div class=\"cart-img-product b-rad-4 o-f-hidden\" data-id=\"" + item.id + "\">" +
+                    "<div class=\"cart-img-product b-rad-4 o-f-hidden\" data-pid=\"" + item.sku + "\">" +
                     "<img src=\"" + item.images[0].url200 + "\" alt=\"IMG-PRODUCT\">" +
                     "</div>" +
                     "</td>" +
@@ -32,7 +32,7 @@ $( document ).ready(function() {
 
     Promise.all(promises).then(() => {
         $('.cart-img-product').on('click', function(){
-            removeFromCart($(this).data('id'));
+            removeFromCart($(this).data('pid'));
         });
         $('.currency').text(currencySign);
         $('#subTotal').text(total);
@@ -42,16 +42,16 @@ $( document ).ready(function() {
     $('#btn-checkout').on('click', function () {
         const cart = JSON.parse(sessionStorage.getItem('delvify_cart')) || { items: [] };
         const items = [];
-        const getItems = cart.items.map(function ({ id, quantity }) {
-            return api('GET', '/product', { id }).done((item) => {
-                items.push({ pid: item.id, quantity, currency: item.currency.name, price: item.price });
+        const getItems = cart.items.map(function ({ sku, quantity }) {
+            return api('GET', '/product', { sku }).done((item) => {
+                items.push({ pid: item.sku, quantity, currency: item.currency.name, price: item.price });
             });
         });
         Promise.all(getItems).then(() => {
             if (getItems.length > 0) {
                 swal('Success', "order placed", "success");
                 const oid = `${Math.floor(Math.random() * 2147483647)}.${Date.now()}`;
-                recommendation_recordCheckout(oid, items);
+                // recommendation_recordCheckout(oid, items);
                 sessionStorage.removeItem('delvify_cart');
                 $('#table .table-row').remove();
                 $('.header-icons-noti').text(0);
@@ -70,18 +70,18 @@ $( document ).ready(function() {
 
 });
 
-function removeFromCart(id) {
+function removeFromCart(sku) {
     const cart = JSON.parse(sessionStorage.getItem('delvify_cart')) || { items: [] };
     const index = cart.items.findIndex(function (item) {
-        return item.id === id;
+        return item.sku == sku;
     });
     const subTotalElement =  $('#subTotal');
-    const itemTotal = parseFloat($(`#table #table-row-${id} .item-total-price`).text());
+    const itemTotal = parseFloat($(`#table #table-row-${sku} .item-total-price`).text());
     const total = parseFloat(subTotalElement.text()) - itemTotal;
 
     if (index >= 0) {
         cart.items.splice(index, 1);
-        $(`#table #table-row-${id}`).remove();
+        $(`#table #table-row-${sku}`).remove();
     }
     sessionStorage.setItem('delvify_cart', JSON.stringify(cart));
     $('.header-icons-noti').text(cart.items.reduce((acc, item) => item.quantity + acc, 0));

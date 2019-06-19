@@ -1,8 +1,8 @@
 
 $( document ).ready(function() {
-    const id = getQuery()["id"] || 1;
+    const sku = getQuery()["sku"] || 1;
 
-    api('GET', `/product/${id}`, {}).done((item) => {
+    api('GET', `/product`, { sku }).done((item) => {
         $('#productName').text(item.name);
         $('#productPrice').text(`${item.currency.sign}${item.price}`);
         $('#productDescription').text(item.description);
@@ -20,8 +20,8 @@ $( document ).ready(function() {
         initSlick3();
         $('#addToCartBtn').on('click', function(){
             swal(item.name, "is added to cart !", "success");
-            addToCart(item.id, parseInt($('#quantity').val()));
-            recommendation_recordAddCart({ pid: item.id });
+            addToCart(item.sku, parseInt($('#quantity').val()));
+            // recommendation_recordAddCart({ pid: item.id });
         });
 
     });

@@ -468,8 +468,9 @@ function recordEngagement(type, options) {
 }
 
 function recordAddCart(options) {
-    console.log('recordAddCart');
-    recordEngagement('addCart', options);
+    if (getQuery()['redirect_from_recommendation']) {
+        recordEngagement('addCart', { ...options, uid });
+    }
 }
 
 function recordCheckout (oid, items) {
@@ -477,18 +478,18 @@ function recordCheckout (oid, items) {
 }
 
 function getRecommendations(placement, productDetailUrl, onAddToCart) {
-    const id = getQuery()["id"] || 1;
+    const sku = getQuery()["sku"] || 1;
     const apiConfigs = {
-        home: { url: '/recommendation/featured', param: {}},
-        productDetails: { url: '/recommendation/similar', param: { pid: id }},
-        productDetailsFeatured: { url: '/recommendation/featured', param: {}},
-        cart: { url: '/recommendation/cart', param: {}}
+        home: { url: '/recommendation/featured', param: {}, source: 'featured' },
+        productDetails: { url: `/recommendation/similar/${sku}`, param: {} , source: 'similar' },
+        productDetailsFeatured: { url: '/recommendation/featured', param: {}, source: 'featured' },
+        cart: { url: '/recommendation/cart', param: {}, source: 'featured' }
     };
 
     const apiConfig = apiConfigs[placement.location];
 
     $.get(`${API_HOST}${apiConfig.url}`, { ...apiConfig.param }).done(function (response) {
-        let skus = response.sim_items.map(item => item.sku);
+        let skus = response;
         let items = [];
         $(`#${placement.tagId}`).addClass("real-recommendation")
         .addClass("animated")
@@ -522,20 +523,23 @@ function getRecommendations(placement, productDetailUrl, onAddToCart) {
         initSlick2();
         const promises = skus.map((sku, index) => {
             return $.get(`${API_HOST}/product`, {sku}).done(function (item) {
+                item.source = apiConfigs[placement.location].source === 'featured' ?
+                    index === 0 ? 'mostPopular' : index === 1 ? 'leastPopular' :
+                        'custom' : 'similar';
                 if (item.is_available && item.unit > 0) {
-                    recordEngagement('display', { pid: item.id });
+                    // recordEngagement('display', { pid: item.id, location: placement.location, source: item.source });
                     items.push(item);
 
                     $(`#${placement.tagId} #recommendedProducts`).append(
                         "<div class=\"item-slick2 p-l-15 p-r-15\">" +
                         "<div class=\"block2\">" +
                         "<div class=\"block2-img wrap-pic-w of-hidden pos-relative\">" +
-                        "<a href=\"" + productDetailUrl(item.id) + "\" class=\"recommended-product-image\" data-id=\"" + item.id + "\">" +
+                        "<a href=\"" + productDetailUrl(item.sku) + "\" class=\"recommended-product-image\" data-pid=\"" + item.sku + "\">" +
                         "<img src=\"" + item.images[0].url + "\" alt=\"IMG-PRODUCT\">" +
                         "</a>" +
                         "<a href=\"javascript:void(0);\" class=\"block2-btn-more\">" +
                         "<div class=\"btn-more-ctn flex-c-m shadow1\">" +
-                        "<i class=\"fa fa-bars btn-more fs-16\" data-id=\"" + item.id + "\" />" +
+                        "<i class=\"fa fa-bars btn-more fs-16\" data-pid=\"" + item.sku + "\" />" +
                         "</div>" +
                         "</a>" +
                         "</div>" +
@@ -550,8 +554,8 @@ function getRecommendations(placement, productDetailUrl, onAddToCart) {
 
             //On Detail Click
             $(`#${placement.tagId} .btn-more`).click(function () {
-                const id = $(this).data('id');
-                const item = items.find((t) => t.id === id);
+                const pid = $(this).data('pid');
+                const item = items.find((t) => t.sku == pid);
 
                 $(`#${placement.tagId} #recommendedDetailsName`).text(item.name);
                 $(`#${placement.tagId} #recommendedDetailsPrice`).text(`${item.currency.sign}${item.price}`);
@@ -561,10 +565,10 @@ function getRecommendations(placement, productDetailUrl, onAddToCart) {
 
                 //On Add Cart
                 $(`#${placement.tagId} #btn-recommended-addcart`).unbind('click').on('click', function(){
-                    onAddToCart(id);
-                    recordEngagement("addCart", { pid: id, uid, from: 'widget'});
+                    onAddToCart(pid);
+                    // recordEngagement("addCart", { pid: id, uid, from: 'widget', location: placement.location, source: item.source });
                 });
-                recordEngagement("enlarge", { pid: id });
+                // recordEngagement("enlarge", { pid: id, location: placement.location, source: item.source });
             });
 
             $(`#${placement.tagId} #recommendedDetailsClose`).click(function () {
@@ -573,11 +577,11 @@ function getRecommendations(placement, productDetailUrl, onAddToCart) {
 
             //On Product Click
             $(`#${placement.tagId} .recommended-product-image`).click(function () {
-                const id = parseInt($(this).data('id'));
+                const id = parseInt($(this).data('pid'));
                 const clicks = JSON.parse(getCookie('rrclick')) || {};
                 clicks[id] = (new Date()).getTime();
                 setCookie('rrclick', JSON.stringify(clicks));
-                recordEngagement("click", { pid: id, uid });
+                // recordEngagement("click", { pid: id, uid, location: placement.location, source: item.source });
             });
         })
     });
@@ -664,7 +668,7 @@ function getDevice() {
 }
 
 window.onload = function () {
-    const config = {
+    let config = {
         placements: [
             {
                 location: 'home',
@@ -687,14 +691,15 @@ window.onload = function () {
                 heading: 'You may also want...',
             }
         ],
-        productDetailUrl: function (id) {
-            return `product-details.html?id=${id}`;
+        productDetailUrl: function (sku) {
+            return `product-details.html?sku=${sku}&redirect_from_recommendation=true`;
         },
-        onAddToCart: function (id) {
+        onAddToCart: function (sku) {
             var nameProduct = $('#recommendedDetailsName').html();
             swal(nameProduct, "is added to cart !", "success");
-            addToCart(id, 1);
-        }
+            addToCart(sku, 1);
+        },
+        featuredItems: [],
     };
     const rra = getCookie('rra');
     if (!rra) {
@@ -705,31 +710,42 @@ window.onload = function () {
         uid = rra;
     }
     let location = {};
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((coords) => {
-            console.log(coords);
-            location = {
-                lat: coords.latitude,
-                long: coords.longitude,
-                accuracy: coords.accuracy,
-            }
+    $.get('http://ip-api.com/json')
+        .done((res) => {
+            // console.log(res);
         });
-    }
-    recordUser(uid, location, getDevice());
-    config.placements = config.placements.map(function (placement) {return {
-        ...placement,
-        tagId: placement.location === 'home' ? 'homePageRecommendation' :
-                placement.location === 'productDetails' ? 'productDetailsRecommendation' :
-                placement.location === 'productDetailsFeatured' ? 'productDetailsFeatured' :
-                placement.location === 'cart' ? 'cartRecommendation' : '',
-    }
+    // if (navigator.geolocation) {
+    //     navigator.geolocation.getCurrentPosition(({ coords }) => {
+    //         console.log(coords);
+    //         location = {
+    //             lat: coords.latitude,
+    //             long: coords.longitude,
+    //             accuracy: coords.accuracy,
+    //         };
+    //
+    //     });
+    // }
 
-    });
-    config.placements.forEach( function (placement) {
-        if ($(`#${placement.tagId}`).length === 1) {
-            getRecommendations(placement, config.productDetailUrl, config.onAddToCart);
-        }
-    })
+
+    $.get(`${API_HOST}/config`)
+        .done((res) => {
+            config = {...config, ...res};
+            config.placements = config.placements.map(function (placement) {return {
+                ...placement,
+                tagId: placement.location === 'home' ? 'homePageRecommendation' :
+                    placement.location === 'productDetails' ? 'productDetailsRecommendation' :
+                        placement.location === 'productDetailsFeatured' ? 'productDetailsFeatured' :
+                            placement.location === 'cart' ? 'cartRecommendation' : '',
+            }
+
+            });
+            config.placements.forEach( function (placement) {
+                if ($(`#${placement.tagId}`).length === 1) {
+                    getRecommendations(placement, config.productDetailUrl, config.onAddToCart);
+                }
+            })
+        });
+
 };
 
 window.recommendation_recordCheckout = recordCheckout;
