@@ -81,19 +81,19 @@
 /******/
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = "./src/js/product-details.js");
+/******/ 	return __webpack_require__(__webpack_require__.s = "./src/js/searchBar.js");
 /******/ })
 /************************************************************************/
 /******/ ({
 
-/***/ "./src/js/product-details.js":
-/*!***********************************!*\
-  !*** ./src/js/product-details.js ***!
-  \***********************************/
+/***/ "./src/js/searchBar.js":
+/*!*****************************!*\
+  !*** ./src/js/searchBar.js ***!
+  \*****************************/
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-eval("\n$( document ).ready(function() {\n    const sku = getQuery()[\"sku\"] || 1;\n\n    api('GET', `/product`, { sku }).done((item) => {\n        $('#productName').text(item.name);\n        $('#productPrice').text(`${item.currency.sign}${item.price}`);\n        $('#productDescription').text(item.description);\n        $('#productSKU').text(`SKU: ${item.sku}`);\n        $('#productCategories').text(`Categories: ${item.category.name}`);\n        item.images.forEach((image) => {\n            $('#productSlide').append(\n                \"<div class=\\\"item-slick3\\\" data-thumb=\\\"\" + image.url + \"\\\">\" +\n                \"<div class=\\\"wrap-pic-w\\\">\" +\n                \"<img src=\\\"\" + image.url + \"\\\" alt=\\\"IMG-PRODUCT\\\">\" +\n                \"</div>\" +\n                \"</div>\");\n        });\n        $('.slick3').slick('unslick');\n        initSlick3();\n        $('#addToCartBtn').on('click', function(){\n            swal(item.name, \"is added to cart !\", \"success\");\n            addToCart(item.sku, parseInt($('#quantity').val()));\n            // recommendation_recordAddCart({ pid: item.id });\n        });\n\n    });\n});\n\n//# sourceURL=webpack:///./src/js/product-details.js?");
+eval("$( document ).ready(function() {\n    $('#searchBar').append(\n        '<div class=\"search-product pos-relative bo4 of-hidden m-b-40\">' +\n        '<form id=\"searchForm\">' +\n        '<input class=\"s-text7 size6 p-l-23 p-r-50\" type=\"text\" name=\"search-product\" id=\"searchProduct\" placeholder=\"Search Products...\">' +\n        '<button class=\"flex-c-m size5 ab-r-m color2 color0-hov trans-0-4\" id=\"searchButton\">' +\n        '<i class=\"fs-12 fa fa-search\" aria-hidden=\"true\" />' +\n        '</button>' +\n        '</form>' +\n        '</div>');\n\n    $('#searchForm').on('submit', function(e) {\n        e.preventDefault();\n        const keyword = $('#searchProduct').val();\n        if (keyword) {\n            window.location.href = \"product.html?keyword=\" + keyword;\n        }\n        return false;\n    });\n});\n\n//# sourceURL=webpack:///./src/js/searchBar.js?");
 
 /***/ })
 

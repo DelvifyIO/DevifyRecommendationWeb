@@ -46,6 +46,7 @@ function displayItem(item) {
     )
 }
 
+
 $( document ).ready(function() {
 
     const limit = 15;
@@ -57,16 +58,18 @@ $( document ).ready(function() {
         param['categoryId'] = categoryId;
     }
     if (keyword) {
-        $('#searchProduct').val(keyword);
-        const result = ['423', '456', '766', '123', '345', '343', '867', '642'];
-        $.get(`${process.env.API_HOST}/product`, { skus: result })
+        $.post("http://localhost:5000/computeSimilarity", { query: keyword })
+
+            .then((result) => {
+                // const result = ['423', '456', '766', '123', '345', '343', '867', '642'];
+                return $.get(`${process.env.API_HOST}/product`, result)  //{ skus: result }
+            })
             .then((products) => {
                 for(let i = 0; i < products.length; i++) {
                     const item = products[i];
                     $('#productList').append(displayItem(item));
                 }
                 addListener('wishlist');
-
                 $('.block2-btn-addcart').on('click', function(){
                     const pid = $(this).data('pid');
                     const item = products.find((t) => t.sku == pid);
@@ -104,4 +107,3 @@ $( document ).ready(function() {
     }
 
 });
-
