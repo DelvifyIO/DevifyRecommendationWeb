@@ -73,9 +73,9 @@ $( document ).ready(function() {
                     const item = products.find((t) => t.sku == pid);
                     swal(item.name, "is added to cart !", "success");
                     addToCart(item.sku, 1);
-                    // recommendation_recordAddCart({ pid: item.sku });
                 });
             }).catch(console.log);
+
         return false;
     } else {
         api('GET', "/product", param).done((response) => {
@@ -99,7 +99,6 @@ $( document ).ready(function() {
                 const item = products.find((t) => t.sku == pid);
                 swal(item.name, "is added to cart !", "success");
                 addToCart(item.sku, 1);
-                // recommendation_recordAddCart({ pid: item.sku });
             });
         });
     }

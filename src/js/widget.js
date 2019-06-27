@@ -1,7 +1,8 @@
-import {api} from "./utils";
-
 const API_HOST = process.env.API_HOST;
+const ALPHAVANTAGE_API_KEY = process.env.ALPHAVANTAGE_API_KEY;
 let uid = '';
+let geo_location = '';
+let device = '';
 
 const styles =
     "<style>" +
@@ -459,34 +460,57 @@ function getCookie(cname) {
     return null;
 }
 
-function recordUser(uid, location, device) {
-    $.post(`${API_HOST}/user`, { uid, location, device });
-}
-
-function recordEngagement(type, options) {
-    $.post(`${API_HOST}/engagement`, { type, ...options });
-}
-
-function recordAddCart(options) {
-    if (getQuery()['redirect_from_recommendation']) {
-        recordEngagement('addCart', { ...options, uid });
+function recordEngagement(type, options = {}) {
+    const data = {
+        pid: options.pid,
+        oid: options.oid,
+        order: options.order,
+        geo_location,
+        uid,
+        device,
+        type,
+        location: options.location || getQuery()['location'],
+        source: options.source || getQuery()['source'],
+    };
+    if (type === 'ADD_CART_FROM_DETAIL' && !getQuery()['redirect_from_recommendation']) return;
+    switch (type) {
+        case 'WIDGET_IMPRESSION':
+        case 'IMPRESSION':
+        case 'SHOW_OVERLAY':
+        case 'CLICK':
+        case 'ADD_CART_FROM_WIDGET':
+        case 'ADD_CART_FROM_DETAIL':
+            $.post(`${API_HOST}/engagement`, data);
+            break;
+        case 'PURCHASE':
+            const promises = data.order.map(item => {
+                const exchangeRateRequest = `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=${item.currency}&to_currency=USD&apikey=${ALPHAVANTAGE_API_KEY}`;
+                return $.get(exchangeRateRequest);
+            });
+            Promise.all(promises)
+                .then((res) => {
+                    res.forEach((rate, index) => {
+                        const exchangeRate = rate && rate['Realtime Currency Exchange Rate'] && rate['Realtime Currency Exchange Rate']['5. Exchange Rate'] ?
+                            rate['Realtime Currency Exchange Rate']['5. Exchange Rate'] : 1;
+                        data.order[index].exchangeRate = exchangeRate;
+                    });
+                    $.post(`${API_HOST}/order`, data);
+                });
+            break;
     }
-}
-
-function recordCheckout (oid, items) {
-    $.post(`${API_HOST}/order`, { oid, uid, items });
 }
 
 function getRecommendations(placement, productDetailUrl, onAddToCart) {
     const sku = getQuery()["sku"] || 1;
     const apiConfigs = {
-        home: { url: '/recommendation/featured', param: {}, source: 'featured' },
-        productDetails: { url: `/recommendation/similar/${sku}`, param: {} , source: 'similar' },
-        productDetailsFeatured: { url: '/recommendation/featured', param: {}, source: 'featured' },
-        cart: { url: '/recommendation/cart', param: {}, source: 'featured' }
+        HOME: { url: '/recommendation/featured', param: {}, source: 'FEATURED' },
+        PRODUCT_DETAILS: { url: `/recommendation/similar/${sku}`, param: {} , source: 'SIMILAR' },
+        PRODUCT_DETAILS_FEATURED: { url: '/recommendation/featured', param: {}, source: 'FEATURED' },
+        CART: { url: '/recommendation/cart', param: {}, source: 'FEATURED' }
     };
 
     const apiConfig = apiConfigs[placement.location];
+    recordEngagement('WIDGET_IMPRESSION', { location: placement.location });
 
     $.get(`${API_HOST}${apiConfig.url}`, { ...apiConfig.param }).done(function (response) {
         let skus = response;
@@ -523,18 +547,18 @@ function getRecommendations(placement, productDetailUrl, onAddToCart) {
         initSlick2();
         const promises = skus.map((sku, index) => {
             return $.get(`${API_HOST}/product`, {sku}).done(function (item) {
-                item.source = apiConfigs[placement.location].source === 'featured' ?
-                    index === 0 ? 'mostPopular' : index === 1 ? 'leastPopular' :
-                        'custom' : 'similar';
+                item.source = apiConfigs[placement.location].source === 'FEATURED' ?
+                    index === 0 ? 'MOST_POPULAR' : index === 1 ? 'LEAST_POPULAR' :
+                        'CUSTOM' : 'SIMILAR';
                 if (item.is_available && item.unit > 0) {
-                    // recordEngagement('display', { pid: item.id, location: placement.location, source: item.source });
+                    recordEngagement('IMPRESSION', { pid: item.sku, location: placement.location, source: item.source });
                     items.push(item);
 
                     $(`#${placement.tagId} #recommendedProducts`).append(
                         "<div class=\"item-slick2 p-l-15 p-r-15\">" +
                         "<div class=\"block2\">" +
                         "<div class=\"block2-img wrap-pic-w of-hidden pos-relative\">" +
-                        "<a href=\"" + productDetailUrl(item.sku) + "\" class=\"recommended-product-image\" data-pid=\"" + item.sku + "\">" +
+                        "<a href=\"" + productDetailUrl({ pid: item.sku, location: placement.location, source: item.source }) + "\" class=\"recommended-product-image\" data-pid=\"" + item.sku + "\">" +
                         "<img src=\"" + item.images[0].url + "\" alt=\"IMG-PRODUCT\">" +
                         "</a>" +
                         "<a href=\"javascript:void(0);\" class=\"block2-btn-more\">" +
@@ -566,9 +590,9 @@ function getRecommendations(placement, productDetailUrl, onAddToCart) {
                 //On Add Cart
                 $(`#${placement.tagId} #btn-recommended-addcart`).unbind('click').on('click', function(){
                     onAddToCart(pid);
-                    // recordEngagement("addCart", { pid: id, uid, from: 'widget', location: placement.location, source: item.source });
+                    recordEngagement("ADD_CART_FROM_WIDGET", { pid: pid, location: placement.location, source: item.source });
                 });
-                // recordEngagement("enlarge", { pid: id, location: placement.location, source: item.source });
+                recordEngagement("SHOW_OVERLAY", { pid: pid, location: placement.location, source: item.source });
             });
 
             $(`#${placement.tagId} #recommendedDetailsClose`).click(function () {
@@ -577,122 +601,64 @@ function getRecommendations(placement, productDetailUrl, onAddToCart) {
 
             //On Product Click
             $(`#${placement.tagId} .recommended-product-image`).click(function () {
-                const id = parseInt($(this).data('pid'));
+                const pid = parseInt($(this).data('pid'));
                 const clicks = JSON.parse(getCookie('rrclick')) || {};
                 clicks[id] = (new Date()).getTime();
                 setCookie('rrclick', JSON.stringify(clicks));
-                // recordEngagement("click", { pid: id, uid, location: placement.location, source: item.source });
+                recordEngagement("CLICK", { pid: pid, location: placement.location, source: item.source });
             });
         })
     });
 }
 
-function getDevice() {
-    var module = {
-        options: [],
-        header: [navigator.platform, navigator.userAgent, navigator.appVersion, navigator.vendor, window.opera],
-        dataos: [
-            { name: 'Windows Phone', value: 'Windows Phone', version: 'OS' },
-            { name: 'Windows', value: 'Win', version: 'NT' },
-            { name: 'iPhone', value: 'iPhone', version: 'OS' },
-            { name: 'iPad', value: 'iPad', version: 'OS' },
-            { name: 'Kindle', value: 'Silk', version: 'Silk' },
-            { name: 'Android', value: 'Android', version: 'Android' },
-            { name: 'PlayBook', value: 'PlayBook', version: 'OS' },
-            { name: 'BlackBerry', value: 'BlackBerry', version: '/' },
-            { name: 'Macintosh', value: 'Mac', version: 'OS X' },
-            { name: 'Linux', value: 'Linux', version: 'rv' },
-            { name: 'Palm', value: 'Palm', version: 'PalmOS' }
-        ],
-        databrowser: [
-            { name: 'Chrome', value: 'Chrome', version: 'Chrome' },
-            { name: 'Firefox', value: 'Firefox', version: 'Firefox' },
-            { name: 'Safari', value: 'Safari', version: 'Version' },
-            { name: 'Internet Explorer', value: 'MSIE', version: 'MSIE' },
-            { name: 'Opera', value: 'Opera', version: 'Opera' },
-            { name: 'BlackBerry', value: 'CLDC', version: 'CLDC' },
-            { name: 'Mozilla', value: 'Mozilla', version: 'Mozilla' }
-        ],
-        init: function () {
-            var agent = this.header.join(' '),
-                os = this.matchItem(agent, this.dataos),
-                browser = this.matchItem(agent, this.databrowser);
-
-            return { os: os, browser: browser };
-        },
-        matchItem: function (string, data) {
-            var i = 0,
-                j = 0,
-                html = '',
-                regex,
-                regexv,
-                match,
-                matches,
-                version;
-
-            for (i = 0; i < data.length; i += 1) {
-                regex = new RegExp(data[i].value, 'i');
-                match = regex.test(string);
-                if (match) {
-                    regexv = new RegExp(data[i].version + '[- /:;]([\\d._]+)', 'i');
-                    matches = string.match(regexv);
-                    version = '';
-                    if (matches) { if (matches[1]) { matches = matches[1]; } }
-                    if (matches) {
-                        matches = matches.split(/[._]+/);
-                        for (j = 0; j < matches.length; j += 1) {
-                            if (j === 0) {
-                                version += matches[j] + '.';
-                            } else {
-                                version += matches[j];
-                            }
-                        }
-                    } else {
-                        version = '0';
-                    }
-                    return {
-                        name: data[i].name,
-                        version: parseFloat(version)
-                    };
-                }
-            }
-            return { name: 'unknown', version: 0 };
-        }
-    };
-
-    const e = module.init();
-    return ({
-        os: e.os.name,
-        browser: e.browser.name,
+const deviceDetector = (function ()
+{
+    var ua = navigator.userAgent.toLowerCase();
+    var detect = (function(s)
+    {
+        if(s===undefined)s=ua;
+        else ua = s.toLowerCase();
+        if(/(ipad|tablet|(android(?!.*mobile))|(windows(?!.*phone)(.*touch))|kindle|playbook|silk|(puffin(?!.*(IP|AP|WP))))/.test(ua))
+            return 'TABLET';
+        else
+        if(/(mobi|ipod|phone|blackberry|opera mini|fennec|minimo|symbian|psp|nintendo ds|archos|skyfire|puffin|blazer|bolt|gobrowser|iris|maemo|semc|teashark|uzard)/.test(ua))
+            return 'MOBILE';
+        else return 'DESKTOP';
     });
-}
+    return{
+        device:detect(),
+        detect:detect,
+        isMobile:((detect()!='desktop')?true:false),
+        userAgent:ua
+    };
+}());
 
 window.onload = function () {
     let config = {
         placements: [
             {
-                location: 'home',
+                location: 'HOME',
                 noOfItems: 10,
                 heading: 'Featured Products',
             },
             {
-                location: 'productDetails',
+                location: 'PRODUCT_DETAILS',
                 noOfItems: 5,
                 heading: 'Related Products',
             },
             {
-                location: 'productDetailsFeatured',
+                location: 'PRODUCT_DETAILS_FEATURED',
                 noOfItems: 5,
                 heading: 'Featured Products',
             },
             {
-                location: 'cart',
+                location: 'CART',
                 noOfItems: 5,
                 heading: 'You may also want...',
             }
         ],
-        productDetailUrl: function (sku) {
-            return `product-details.html?sku=${sku}&redirect_from_recommendation=true`;
+        productDetailUrl: function ({ pid, location, source }) {
+            return `product-details.html?sku=${pid}&redirect_from_recommendation=true&location=${location}&source=${source}`;
         },
         onAddToCart: function (sku) {
             var nameProduct = $('#recommendedDetailsName').html();
@@ -708,45 +674,28 @@ window.onload = function () {
         setCookie('rra', uid);
     } else {
         uid = rra;
-    }
-    let location = {};
+    };
+    device = deviceDetector.device;
     $.get('http://ip-api.com/json')
         .done((res) => {
-            // console.log(res);
+            geo_location = res.country;
+            $.get(`${API_HOST}/config`)
+                .done((res) => {
+                    config = {...config, ...res};
+                    config.placements = config.placements.map(function (placement) {return {
+                        ...placement,
+                        tagId: placement.location === 'HOME' ? 'homePageRecommendation' :
+                            placement.location === 'PRODUCT_DETAILS' ? 'productDetailsRecommendation' :
+                                placement.location === 'PRODUCT_DETAILS_FEATURED' ? 'productDetailsFeatured' :
+                                    placement.location === 'CART' ? 'cartRecommendation' : '',
+                    }});
+                    config.placements.forEach( function (placement) {
+                        if ($(`#${placement.tagId}`).length === 1) {
+                            getRecommendations(placement, config.productDetailUrl, config.onAddToCart);
+                        }
+                    })
+                });
         });
-    // if (navigator.geolocation) {
-    //     navigator.geolocation.getCurrentPosition(({ coords }) => {
-    //         console.log(coords);
-    //         location = {
-    //             lat: coords.latitude,
-    //             long: coords.longitude,
-    //             accuracy: coords.accuracy,
-    //         };
-    //
-    //     });
-    // }
-
-
-    $.get(`${API_HOST}/config`)
-        .done((res) => {
-            config = {...config, ...res};
-            config.placements = config.placements.map(function (placement) {return {
-                ...placement,
-                tagId: placement.location === 'home' ? 'homePageRecommendation' :
-                    placement.location === 'productDetails' ? 'productDetailsRecommendation' :
-                        placement.location === 'productDetailsFeatured' ? 'productDetailsFeatured' :
-                            placement.location === 'cart' ? 'cartRecommendation' : '',
-            }
-
-            });
-            config.placements.forEach( function (placement) {
-                if ($(`#${placement.tagId}`).length === 1) {
-                    getRecommendations(placement, config.productDetailUrl, config.onAddToCart);
-                }
-            })
-        });
-
 };
 
-window.recommendation_recordCheckout = recordCheckout;
-window.recommendation_recordAddCart = recordAddCart;
+window.recommendationRecord = recordEngagement;

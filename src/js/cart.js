@@ -51,7 +51,7 @@ $( document ).ready(function() {
             if (getItems.length > 0) {
                 swal('Success', "order placed", "success");
                 const oid = `${Math.floor(Math.random() * 2147483647)}.${Date.now()}`;
-                // recommendation_recordCheckout(oid, items);
+                recommendationRecord('PURCHASE', { oid, order: items });
                 sessionStorage.removeItem('delvify_cart');
                 $('#table .table-row').remove();
                 $('.header-icons-noti').text(0);
