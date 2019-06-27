@@ -54,15 +54,22 @@ $( document ).ready(function() {
     const categoryId = getQuery()['category'] || null;
     const keyword = getQuery()['keyword'] || null;
     const param = { limit, offset: (page - 1)* limit };
+    const searchItems = {};
     if (categoryId) {
         param['categoryId'] = categoryId;
     }
     if (keyword) {
+        $('#searchProduct').val(keyword);
         $.get("http://13.67.88.182:8085/computeSimilarity", { text: keyword })
             .then((result) => {
+                const skus = result.skus || [];
+                skus.forEach((sku, index) => {
+                    searchItems[sku] = index;
+                });
                 return $.get(`${process.env.API_HOST}/product`, { skus: result.skus || [] })
             })
             .then((products) => {
+                products.sort((a, b) => searchItems[a.sku] - searchItems[b.sku]);
                 for(let i = 0; i < products.length; i++) {
                     const item = products[i];
                     $('#productList').append(displayItem(item));
