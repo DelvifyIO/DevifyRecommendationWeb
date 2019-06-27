@@ -58,11 +58,9 @@ $( document ).ready(function() {
         param['categoryId'] = categoryId;
     }
     if (keyword) {
-        $.post("http://localhost:5000/computeSimilarity", { query: keyword })
-
+        $.get("http://13.67.88.182:8085/computeSimilarity", { text: keyword })
             .then((result) => {
-                // const result = ['423', '456', '766', '123', '345', '343', '867', '642'];
-                return $.get(`${process.env.API_HOST}/product`, result)  //{ skus: result }
+                return $.get(`${process.env.API_HOST}/product`, { skus: result.skus || [] })
             })
             .then((products) => {
                 for(let i = 0; i < products.length; i++) {
