@@ -21,7 +21,7 @@ $( document ).ready(function() {
         $('#addToCartBtn').on('click', function(){
             swal(item.name, "is added to cart !", "success");
             addToCart(item.sku, parseInt($('#quantity').val()));
-            // recommendation_recordAddCart({ pid: item.id });
+            recommendationRecord('ADD_CART_FROM_DETAIL', { pid: item.sku });
         });
 
     });

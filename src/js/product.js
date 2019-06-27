@@ -58,11 +58,9 @@ $( document ).ready(function() {
         param['categoryId'] = categoryId;
     }
     if (keyword) {
-        $.post("http://localhost:5000/computeSimilarity", { query: keyword })
-
+        $.get("http://13.67.88.182:8085/computeSimilarity", { text: keyword })
             .then((result) => {
-                // const result = ['423', '456', '766', '123', '345', '343', '867', '642'];
-                return $.get(`${process.env.API_HOST}/product`, result)  //{ skus: result }
+                return $.get(`${process.env.API_HOST}/product`, { skus: result.skus || [] })
             })
             .then((products) => {
                 for(let i = 0; i < products.length; i++) {
@@ -75,9 +73,9 @@ $( document ).ready(function() {
                     const item = products.find((t) => t.sku == pid);
                     swal(item.name, "is added to cart !", "success");
                     addToCart(item.sku, 1);
-                    // recommendation_recordAddCart({ pid: item.sku });
                 });
             }).catch(console.log);
+
         return false;
     } else {
         api('GET', "/product", param).done((response) => {
@@ -101,7 +99,6 @@ $( document ).ready(function() {
                 const item = products.find((t) => t.sku == pid);
                 swal(item.name, "is added to cart !", "success");
                 addToCart(item.sku, 1);
-                // recommendation_recordAddCart({ pid: item.sku });
             });
         });
     }
