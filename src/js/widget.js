@@ -558,7 +558,7 @@ function getRecommendations(placement, productDetailUrl, onAddToCart) {
                         "<div class=\"item-slick2 p-l-15 p-r-15\">" +
                         "<div class=\"block2\">" +
                         "<div class=\"block2-img wrap-pic-w of-hidden pos-relative\">" +
-                        "<a href=\"" + productDetailUrl({ pid: item.sku, location: placement.location, source: item.source }) + "\" class=\"recommended-product-image\" data-pid=\"" + item.sku + "\">" +
+                        "<a href=\"" + productDetailUrl({ pid: item.sku, location: placement.location, source: item.source }) + "\" class=\"recommended-product-image\" data-pid=\"" + item.sku + "\" data-source=\"" + item.source +"\">" +
                         "<img src=\"" + item.images[0].url + "\" alt=\"IMG-PRODUCT\">" +
                         "</a>" +
                         "<a href=\"javascript:void(0);\" class=\"block2-btn-more\">" +
@@ -601,11 +601,9 @@ function getRecommendations(placement, productDetailUrl, onAddToCart) {
 
             //On Product Click
             $(`#${placement.tagId} .recommended-product-image`).click(function () {
-                const pid = parseInt($(this).data('pid'));
-                const clicks = JSON.parse(getCookie('rrclick')) || {};
-                clicks[id] = (new Date()).getTime();
-                setCookie('rrclick', JSON.stringify(clicks));
-                recordEngagement("CLICK", { pid: pid, location: placement.location, source: item.source });
+                const pid = $(this).data('pid');
+                const source = $(this).data('source');
+                recordEngagement("CLICK", { pid: pid, location: placement.location, source: source });
             });
         })
     });
@@ -634,6 +632,11 @@ const deviceDetector = (function ()
 }());
 
 window.onload = function () {
+    $.ajaxSetup({
+        headers:{
+            merchantid: 'db1',
+        }
+    });
     let config = {
         placements: [
             {
@@ -675,10 +678,30 @@ window.onload = function () {
     } else {
         uid = rra;
     };
+
     device = deviceDetector.device;
     $.get('http://ip-api.com/json')
         .done((res) => {
             geo_location = res.country;
+            $.get(`${API_HOST}/config`)
+                .done((res) => {
+                    config = {...config, ...res};
+                    config.placements = config.placements.map(function (placement) {return {
+                        ...placement,
+                        tagId: placement.location === 'HOME' ? 'homePageRecommendation' :
+                            placement.location === 'PRODUCT_DETAILS' ? 'productDetailsRecommendation' :
+                                placement.location === 'PRODUCT_DETAILS_FEATURED' ? 'productDetailsFeatured' :
+                                    placement.location === 'CART' ? 'cartRecommendation' : '',
+                    }});
+                    config.placements.forEach( function (placement) {
+                        if ($(`#${placement.tagId}`).length === 1) {
+                            getRecommendations(placement, config.productDetailUrl, config.onAddToCart);
+                        }
+                    })
+                });
+        })
+        .catch((e) => {
+            console.log(e);
             $.get(`${API_HOST}/config`)
                 .done((res) => {
                     config = {...config, ...res};

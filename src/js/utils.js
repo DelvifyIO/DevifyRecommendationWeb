@@ -2,6 +2,11 @@
 export function api(method = 'GET', url = '', param = {}) {
     const { id, verbal = false, ...params } = param;
     url = process.env.API_HOST + url;
+    $.ajaxSetup({
+        headers:{
+            merchantid: 'db1',
+        }
+    });
     if (id) {
         url = url + `/${id}`;
     }
